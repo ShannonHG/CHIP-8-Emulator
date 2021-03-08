@@ -6,7 +6,7 @@ namespace SHG
 {
 	Memory::Memory()
 	{
-		//Load font sprites into memory
+		// Load font sprites into memory
 	}
 
 	const uint8_t* Memory::GetData()
@@ -26,7 +26,7 @@ namespace SHG
 
 		while (!file.eof())
 		{
-			//Read one byte from the ROM file
+			// Read one byte from the ROM file
 			file.read(buf, 1);
 			
 			fileSize += file.gcount();
@@ -37,8 +37,8 @@ namespace SHG
 				break;
 			}
 
-			//Any memory locations after data[RESERVED_MEMORY_SIZE - 1] 
-			//can be used for storing the ROM
+			// Any memory locations after data[RESERVED_MEMORY_SIZE - 1] 
+			// can be used for storing the ROM
 			data[RESERVED_MEMORY_SIZE + counter] = buf[0];
 
 			counter++;

@@ -351,3 +351,6 @@ MigrationBackup/
 
 # ROM files used for testing
 ROMs/
+
+# Third party libraries
+ThirdParty/

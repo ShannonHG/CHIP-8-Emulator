@@ -2,13 +2,14 @@
 #include <map>
 #include <functional>
 #include "Memory.hpp"
+#include "Display.hpp"
 
 namespace SHG
 {
 	class CPU
 	{
 	public:
-		CPU(Memory* memory);
+		CPU(Memory* memory, Display* display);
 		void Tick();
 
 	private:
@@ -19,6 +20,7 @@ namespace SHG
 		static const uint8_t VF_REG_INDEX = 15;
 
 		Memory* memory;
+		Display* display;
 		uint16_t programCounter = Memory::RESERVED_MEMORY_SIZE;
 		uint16_t stack[STACK_SIZE]{};
 		uint8_t stackPointer{};
@@ -26,10 +28,14 @@ namespace SHG
 		uint16_t iRegister{};
 		uint16_t timerRegisters[2]{};
 
-		void LogInstructionExecution(std::string instruction);
-		void LogStackPointerUpdate();
-		void LogProgramCounterUpdate();
-		void LogRegisterUpdate(int id);
+		uint8_t GetXRegisterId(uint16_t instruction);
+		uint8_t GetYRegisterId(uint16_t instruction);
+
+		void PrintInstructionExecution(std::string instruction);
+		void PrintStackPointerValue();
+		void PrintStackValues();
+		void PrintProgramCounterValue();
+		void PrintRegisterValues();
 
 		void ExecuteInstruction(uint16_t, const uint8_t*);
 
