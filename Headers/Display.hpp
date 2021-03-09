@@ -7,16 +7,17 @@ namespace SHG
 	class Display
 	{
 	public: 
+		static const int LOW_RES_SCREEN_WIDTH = 64;
+		static const int LOW_RES_SCREEN_HEIGHT = 32;
+		static const int LOW_RES_PIXEL_COUNT = LOW_RES_SCREEN_WIDTH * LOW_RES_SCREEN_HEIGHT;
+
 		Display(int width, int height);
 		void Clear();
 		void SetPixel(int x, int y, uint8_t color);
 		uint8_t GetPixel(int x, int y);
 
 	private:
-		static const int CHIP_8_SCREEN_WIDTH = 64;
-		static const int CHIP_8_SCREEN_HEIGHT = 32;
-
-		uint8_t nativeScreenPixels[CHIP_8_SCREEN_WIDTH * CHIP_8_SCREEN_HEIGHT]{};
+		uint8_t lowResScreenPixels[LOW_RES_PIXEL_COUNT]{};
 
 		int screenWidth{};
 		int screenHeight{};

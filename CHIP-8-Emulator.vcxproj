@@ -21,10 +21,12 @@
   <ItemGroup>
     <ClInclude Include="Headers\CPU.hpp" />
     <ClInclude Include="Headers\Display.hpp" />
+    <ClInclude Include="Headers\Keypad.hpp" />
     <ClInclude Include="Headers\Memory.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Source\Display.cpp" />
+    <ClCompile Include="Source\Keypad.cpp" />
     <ClCompile Include="Source\Main.cpp" />
     <ClCompile Include="Source\Memory.cpp" />
     <ClCompile Include="Source\CPU.cpp" />
@@ -83,16 +85,16 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>D:\Shan\Documents\SoftwareProjects\CHIP-8-Emulator\Headers;D:\Shan\Documents\SoftwareProjects\CHIP-8-Emulator\ThirdParty\SDL2-devel-2.0.14-VC\SDL2-2.0.14\include;;$(IncludePath)</IncludePath>
-    <LibraryPath>D:\Shan\Documents\SoftwareProjects\CHIP-8-Emulator\ThirdParty\SDL2-devel-2.0.14-VC\SDL2-2.0.14\lib\x64;;$(LibraryPath)</LibraryPath>
+    <IncludePath>$(ProjectDir)\Headers;$(ProjectDir)\ThirdParty\SDL2-devel-2.0.14-VC\SDL2-2.0.14\include;;$(IncludePath)</IncludePath>
+    <LibraryPath>$(ProjectDir)\ThirdParty\SDL2-devel-2.0.14-VC\SDL2-2.0.14\lib\x64;;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>D:\Shan\Documents\SoftwareProjects\CHIP-8-Emulator\Headers;D:\Shan\Documents\SoftwareProjects\CHIP-8-Emulator\ThirdParty\SDL2-devel-2.0.14-VC\SDL2-2.0.14\include;$(IncludePath);$(IncludePath)</IncludePath>
-    <LibraryPath>D:\Shan\Documents\SoftwareProjects\CHIP-8-Emulator\ThirdParty\SDL2-devel-2.0.14-VC\SDL2-2.0.14\lib\x64;$(LibraryPath);$(LibraryPath)</LibraryPath>
+    <IncludePath>$(ProjectDir)\Headers;$(ProjectDir)\ThirdParty\SDL2-devel-2.0.14-VC\SDL2-2.0.14\include;$(IncludePath);$(IncludePath)</IncludePath>
+    <LibraryPath>$(ProjectDir)\ThirdParty\SDL2-devel-2.0.14-VC\SDL2-2.0.14\lib\x64;$(LibraryPath);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>

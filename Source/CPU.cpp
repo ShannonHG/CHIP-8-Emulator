@@ -1,40 +1,60 @@
 #include <iostream>
 #include <ios>
 #include <iomanip>
+#include <algorithm>
 #include "CPU.hpp"
+using namespace std::chrono;
 
 namespace SHG
 {
-	CPU::CPU(Memory* memory, Display* display)
+	// How many time per second to update timers
+	static const int TIMER_UPDATES_PER_SECOND = 60;
+
+	// How many milliseconds to wait between timer updates
+	static const double TIMER_UPDATE_DELTA_TIME = (1.0 / TIMER_UPDATES_PER_SECOND) * 1000.0;
+
+	CPU::CPU(Memory* memory, Display* display, Keypad* keypad)
 	{
 		this->memory = memory;
 		this->display = display;
+		this->keypad = keypad;
 	}
 
 	void CPU::Tick()
 	{
-		const uint8_t* data = memory->GetData();
+		auto currentTime = system_clock::now();
+		auto deltaTime = (duration_cast<duration<double, std::milli>> (currentTime - lastTimerUpdateTime)).count();
 
 		// Instructions are 16 bytes each, so the bytes at [programCounter] and 
 		// [programCounter + 1] are combined to retrieve the full instruction.
-		uint16_t instruction = (data[programCounter] << 8) | (data[programCounter + 1]);
+		uint16_t instruction = (memory->GetByte(programCounter) << 8) | (memory->GetByte(programCounter + 1));
 
-		// Move to next instruction
-		programCounter += 2;
+		/*std::cout << "Instruction read from memory: " << std::hex << std::setfill('0') << std::setw(4) << instruction << std::endl;
+		std::cout << std::resetiosflags(std::ios::hex);*/
 
-		std::cout << "Program counter: " << programCounter << std::endl;
-		std::cout << "Instruction read from memory: " << std::hex << std::setfill('0') << std::setw(4) << instruction << std::endl;
-		std::cout << std::resetiosflags(std::ios::hex);
+		MoveToNextInstruction();
 
-		ExecuteInstruction(instruction, data);
+		ExecuteInstruction(instruction);
 
-		PrintStackPointerValue();
+		if (deltaTime >= TIMER_UPDATE_DELTA_TIME)
+		{
+			// Decrement timers, and prevent them from being less than zero
+			timerRegisters[DELAY_TIMER_INDEX] = std::max(timerRegisters[DELAY_TIMER_INDEX] - 1, 0);
+			timerRegisters[SOUND_TIMER_INDEX] = std::max(timerRegisters[SOUND_TIMER_INDEX] - 1, 0);
+
+			lastTimerUpdateTime = currentTime;
+		}
+
+	/*	PrintStackPointerValue();
 		PrintStackValues();
 		PrintProgramCounterValue();
 		PrintRegisterValues();
+		PrintDelayTimerValue();
+		PrintSoundTimerValue();*/
+
 	}
 
-	void CPU::ExecuteInstruction(uint16_t instruction, const uint8_t* memData)
+	void CPU::ExecuteInstruction(uint16_t instruction)
 	{
 		switch (instruction & 0xF000) // Ignore last 12 bits
 		{
@@ -118,7 +138,7 @@ namespace SHG
 			Execute_CXKK(instruction);
 			break;
 		case 0xD000:
-			Execute_DXYN(instruction, memData);
+			Execute_DXYN(instruction);
 			break;
 		case 0xE000:
 			switch (instruction & 0xF0FF) // Ignore second half-byte
@@ -198,7 +218,11 @@ namespace SHG
 		PrintInstructionExecution("2NNN");
 
 		stackPointer++;
-		programCounter = stack[stackPointer];
+
+		//Place next subroutine on the top of the stack
+		stack[stackPointer] = programCounter;
+
+		programCounter = instruction & 0x0FFF;
 	}
 
 	void CPU::Execute_3XKK(uint16_t instruction)
@@ -206,7 +230,7 @@ namespace SHG
 		PrintInstructionExecution("3XKK");
 
 		// If Vx is equal to kk, then skip the next instruction
-		if (vRegisters[GetXRegisterId(instruction)] == (instruction & 0x00FF)) programCounter += 2;
+		if (vRegisters[GetX(instruction)] == (instruction & 0x00FF)) MoveToNextInstruction();
 	}
 
 	void CPU::Execute_4XKK(uint16_t instruction)
@@ -214,7 +238,7 @@ namespace SHG
 		PrintInstructionExecution("4XKK");
 
 		// If Vx is NOT equal to kk, then skip the next instruction
-		if (vRegisters[GetXRegisterId(instruction)] != (instruction & 0x00FF)) programCounter += 2;
+		if (vRegisters[GetX(instruction)] != (instruction & 0x00FF)) MoveToNextInstruction();
 	}
 
 	void CPU::Execute_5XY0(uint16_t instruction)
@@ -222,14 +246,14 @@ namespace SHG
 		PrintInstructionExecution("5XY0");
 
 		//If Vx is equal to Vy, then skip the next instruction
-		if (vRegisters[GetXRegisterId(instruction)] == vRegisters[GetYRegisterId(instruction)]) programCounter += 2;
+		if (vRegisters[GetX(instruction)] == vRegisters[GetY(instruction)]) MoveToNextInstruction();
 	}
 
 	void CPU::Execute_6XKK(uint16_t instruction)
 	{
 		PrintInstructionExecution("6XKK");
 
-		uint8_t xRegId = GetXRegisterId(instruction);
+		uint8_t xRegId = GetX(instruction);
 		vRegisters[xRegId] = instruction & 0x00FF;
 	}
 
@@ -237,7 +261,7 @@ namespace SHG
 	{
 		PrintInstructionExecution("7XKK");
 
-		uint8_t xRegId = GetXRegisterId(instruction);
+		uint8_t xRegId = GetX(instruction);
 		vRegisters[xRegId] += instruction & 0x00FF;
 	}
 
@@ -245,8 +269,8 @@ namespace SHG
 	{
 		PrintInstructionExecution("8XY0");
 
-		uint8_t xRegId = GetXRegisterId(instruction);
-		uint8_t yRegId = GetYRegisterId(instruction);
+		uint8_t xRegId = GetX(instruction);
+		uint8_t yRegId = GetY(instruction);
 		vRegisters[xRegId] = vRegisters[yRegId];
 	}
 
@@ -254,8 +278,8 @@ namespace SHG
 	{
 		PrintInstructionExecution("8XY1");
 
-		uint8_t xRegId = GetXRegisterId(instruction);
-		uint8_t yRegId = GetYRegisterId(instruction);
+		uint8_t xRegId = GetX(instruction);
+		uint8_t yRegId = GetY(instruction);
 		vRegisters[xRegId] |= vRegisters[yRegId];
 	}
 
@@ -263,8 +287,8 @@ namespace SHG
 	{
 		PrintInstructionExecution("8XY2");
 
-		uint8_t xRegId = GetXRegisterId(instruction);
-		uint8_t yRegId = GetYRegisterId(instruction);
+		uint8_t xRegId = GetX(instruction);
+		uint8_t yRegId = GetY(instruction);
 		vRegisters[xRegId] = vRegisters[xRegId] & vRegisters[yRegId];
 	}
 
@@ -272,19 +296,19 @@ namespace SHG
 	{
 		PrintInstructionExecution("8XY3");
 
-		uint8_t xRegId = GetXRegisterId(instruction);
-		uint8_t yRegId = GetYRegisterId(instruction);
+		uint8_t xRegId = GetX(instruction);
+		uint8_t yRegId = GetY(instruction);
 
 		// XOR
-		vRegisters[xRegId] ^= vRegisters[xRegId] & vRegisters[yRegId];
+		vRegisters[xRegId] ^= vRegisters[yRegId];
 	}
 
 	void CPU::Execute_8XY4(uint16_t instruction)
 	{
 		PrintInstructionExecution("8XY4");
 
-		uint8_t xRegId = GetXRegisterId(instruction);
-		uint8_t yRegId = GetYRegisterId(instruction);
+		uint8_t xRegId = GetX(instruction);
+		uint8_t yRegId = GetY(instruction);
 
 		uint16_t sum = vRegisters[xRegId] + vRegisters[yRegId];
 
@@ -292,15 +316,15 @@ namespace SHG
 		vRegisters[xRegId] = sum & 0xFF;
 
 		// If the sum is greater than 0, then set VF to 1
-		if (sum > 255) vRegisters[VF_REG_INDEX] = 1;
+		vRegisters[VF_REG_INDEX] = sum > 0xFF ? 1 : 0;
 	}
 
 	void CPU::Execute_8XY5(uint16_t instruction)
 	{
 		PrintInstructionExecution("8XY5");
 
-		uint8_t xRegId = GetXRegisterId(instruction);
-		uint8_t yRegId = GetYRegisterId(instruction);
+		uint8_t xRegId = GetX(instruction);
+		uint8_t yRegId = GetY(instruction);
 
 		// If Vx is greater than Vy, then set VF to 1, otherwise set VF to 0
 		vRegisters[VF_REG_INDEX] = vRegisters[xRegId] > vRegisters[yRegId] ? 1 : 0;
@@ -312,9 +336,9 @@ namespace SHG
 	{
 		PrintInstructionExecution("8XY6");
 
-		uint8_t xRegId = GetXRegisterId(instruction);
+		uint8_t xRegId = GetX(instruction);
 
-		// If the least significant bit of Vx is 1, then set the VF to 1, otherwise set VF to 0
+		// If the least significant bit of vRegisters[x] is 1, then set VF to 1, otherwise set VF to 0
 		vRegisters[VF_REG_INDEX] = (vRegisters[xRegId] & 1) == 1 ? 1 : 0;
 
 		vRegisters[xRegId] /= 2;
@@ -324,8 +348,8 @@ namespace SHG
 	{
 		PrintInstructionExecution("8XY7");
 
-		uint8_t xRegId = GetXRegisterId(instruction);
-		uint8_t yRegId = GetYRegisterId(instruction);
+		uint8_t xRegId = GetX(instruction);
+		uint8_t yRegId = GetY(instruction);
 
 		vRegisters[VF_REG_INDEX] = vRegisters[yRegId] > vRegisters[xRegId] ? 1 : 0;
 		vRegisters[xRegId] = vRegisters[yRegId] - vRegisters[xRegId];
@@ -335,12 +359,11 @@ namespace SHG
 	{
 		PrintInstructionExecution("8XYE");
 
-		uint8_t xRegId = GetXRegisterId(instruction);
-		uint8_t yRegId = GetYRegisterId(instruction);
+		uint8_t xRegId = GetX(instruction);
 
 		// If the most significant bit of Vx is 1, then set VF to 1, otherwise set VF to 0
 		// 128 (decimal) = 10000000 (binary)
-		vRegisters[VF_REG_INDEX] = (vRegisters[xRegId] & 128) == 1 ? 1 : 0;
+		vRegisters[VF_REG_INDEX] = ((vRegisters[xRegId] & 128) >> 7) == 1 ? 1 : 0;
 
 		vRegisters[xRegId] *= 2;
 	}
@@ -349,11 +372,11 @@ namespace SHG
 	{
 		PrintInstructionExecution("9XY0");
 
-		uint8_t xRegId = GetXRegisterId(instruction);
-		uint8_t yRegId = GetYRegisterId(instruction);
+		uint8_t xRegId = GetX(instruction);
+		uint8_t yRegId = GetY(instruction);
 
 		// If Vx is NOT equal to Vy, then skip the next instruction
-		if (vRegisters[xRegId] != vRegisters[yRegId]) programCounter += 2;
+		if (vRegisters[xRegId] != vRegisters[yRegId]) MoveToNextInstruction();
 	}
 
 	void CPU::Execute_ANNN(uint16_t instruction)
@@ -376,23 +399,23 @@ namespace SHG
 	{
 		PrintInstructionExecution("CXKK");
 
-		uint8_t xRegId = GetXRegisterId(instruction);
+		uint8_t xRegId = GetX(instruction);
 
 		//TODO: Use a better method of getting random numbers
 		uint8_t randNum = rand() % 255;
 
-		vRegisters[xRegId] = randNum & instruction & 0x00FF;
+		vRegisters[xRegId] = randNum & (instruction & 0x00FF);
 	}
 
-	void CPU::Execute_DXYN(uint16_t instruction, const uint8_t* memData)
+	void CPU::Execute_DXYN(uint16_t instruction)
 	{
 		PrintInstructionExecution("DXYN");
 
-		uint8_t xRegId = GetXRegisterId(instruction);
-		uint8_t yRegId = GetYRegisterId(instruction);
+		uint8_t xRegId = GetX(instruction);
+		uint8_t yRegId = GetY(instruction);
 		uint16_t spriteSize = instruction & 0x000F;
 
-		std::cout << "Drawing sprite with size: 8 x " << spriteSize << std::endl;
+		//std::cout << "Drawing sprite with size: 8 x " << spriteSize << std::endl;
 
 		int x = vRegisters[xRegId];
 
@@ -400,23 +423,35 @@ namespace SHG
 		{
 			int y = vRegisters[yRegId] + index;
 
-			uint8_t spriteByte = memData[iRegister + index];
+			uint8_t spriteByte = memory->GetByte(iRegister + index);
 
 			for (int i = 0; i < 8; i++)
 			{
+				// Wrap x and y values
+				uint8_t clampedX = (x + i) % Display::LOW_RES_SCREEN_WIDTH;
+				uint8_t clampedY = y % Display::LOW_RES_SCREEN_HEIGHT;
+
 				// Note: Bits should be read from left to right since graphics on CHIP-8 are drawn
 				// from top-left to bottom-right. 
 
 				// This operation is done in order to isolate the bit that represents
 				// the current pixel.
 				// 0x80(hexadecimal) = 128(decimal) = 10000000(binary).
-				uint8_t pixel = spriteByte & (0x80 >> i);
+				uint8_t spritePixel = spriteByte & (0x80 >> i);
 
 				// Shift the isolated bit to the right-most position in the byte, so 
 				// that the byte can be treated as a 0 or 1.
-				pixel = pixel >> (7 - i);
+				spritePixel = spritePixel >> (7 - i);
 
-				display->SetPixel(x + i, y, pixel);
+				uint8_t displayPixel = display->GetPixel(clampedX, clampedY);
+
+				// XOR the sprite's pixels with the existing pixels on the screen
+				uint8_t resultPixel = (spritePixel ^ displayPixel);
+
+				display->SetPixel(clampedX, clampedY, resultPixel);
+
+				// Set VF to 1 if a pixel is erased after the XOR operation, otherwise set VF to 0
+				vRegisters[VF_REG_INDEX] = (resultPixel == 0) && (displayPixel == 1) ? 1 : 0;
 			}
 		}
 	}
@@ -426,22 +461,27 @@ namespace SHG
 	{
 		PrintInstructionExecution("EX9E");
 
-		// TODO: Implement
+		uint8_t xRegId = GetX(instruction);
+
+		// Check if key with value vRegisters[x] is pressed. If it's pressed, then skip next instruction.
+		if (keypad->IsKeyPressed(vRegisters[xRegId])) MoveToNextInstruction();
 	}
 
 	void CPU::Execute_EXA1(uint16_t instruction)
 	{
 		PrintInstructionExecution("EXA1");
 
-		// TODO: Check if key with value Vx is pressed. If it's not pressed, skip next instruction.
-		programCounter += 2;
+		uint8_t xRegId = GetX(instruction);
+
+		// Check if key with value vRegisters[x] is pressed. If it's NOT pressed, then skip next instruction.
+		if (!keypad->IsKeyPressed(vRegisters[xRegId])) MoveToNextInstruction();
 	}
 
 	void CPU::Execute_FX07(uint16_t instruction)
 	{
 		PrintInstructionExecution("FX07");
 
-		uint8_t xRegId = GetXRegisterId(instruction);
+		uint8_t xRegId = GetX(instruction);
 
 		vRegisters[xRegId] = timerRegisters[DELAY_TIMER_INDEX];
 	}
@@ -450,17 +490,25 @@ namespace SHG
 	{
 		PrintInstructionExecution("FX0A");
 
-		uint8_t xRegId = GetXRegisterId(instruction);
+		uint8_t xRegId = GetX(instruction);
+		uint8_t key = 0;
 
-		// TODO: Implement
+		if (keypad->GetKeyPressedThisFrame(&key))
+		{
+			vRegisters[xRegId] = key;
+		}
+		else
+		{
+			// Stay on the current instruction until a key is pressed
+			programCounter -= 2;
+		}
 	}
 
 	void CPU::Execute_FX15(uint16_t instruction)
 	{
 		PrintInstructionExecution("FX15");
 
-		uint8_t xRegId = GetXRegisterId(instruction);
-
+		uint8_t xRegId = GetX(instruction);
 		timerRegisters[DELAY_TIMER_INDEX] = vRegisters[xRegId];
 
 		std::cout << "Updated delay timer register: " << timerRegisters[DELAY_TIMER_INDEX] << std::endl;
@@ -470,8 +518,7 @@ namespace SHG
 	{
 		PrintInstructionExecution("FX18");
 
-		uint8_t xRegId = GetXRegisterId(instruction);
-
+		uint8_t xRegId = GetX(instruction);
 		timerRegisters[SOUND_TIMER_INDEX] = vRegisters[xRegId];
 
 		std::cout << "Updated sound timer register: " << timerRegisters[SOUND_TIMER_INDEX] << std::endl;
@@ -481,7 +528,7 @@ namespace SHG
 	{
 		PrintInstructionExecution("FX1E");
 
-		uint8_t xRegId = GetXRegisterId(instruction);
+		uint8_t xRegId = GetX(instruction);
 
 		iRegister += vRegisters[xRegId];
 	}
@@ -490,28 +537,57 @@ namespace SHG
 	{
 		PrintInstructionExecution("FX29");
 
-		// TODO: Implement
+		uint8_t xRegId = GetX(instruction);
+
+		// Set iRegister to the location of the sprite for the digit represent by vRegisters[X]
+		iRegister = vRegisters[xRegId] * Memory::FONT_SPRITE_SIZE;
 	}
 
 	void CPU::Execute_FX33(uint16_t instruction)
 	{
 		PrintInstructionExecution("FX33");
 
-		// TODO: Implement
+		uint8_t xRegId = GetX(instruction);
+
+		uint8_t decimalNum = vRegisters[xRegId];
+
+		// Store binary-coded decimal representation of vRegisters[X] in memory
+
+		// Retrieve digit in hundreds place
+		uint8_t hundredsValue = std::floor(decimalNum / 100.0);
+
+		// Retrieve digit in tens place
+		uint8_t tensValue = std::floor((decimalNum - (hundredsValue * 100)) / 10.0);
+
+		// Retrieve digit in ones place
+		uint8_t onesValue = decimalNum - (hundredsValue * 100) - (tensValue * 10);
+
+		memory->SetByte(iRegister, hundredsValue);
+		memory->SetByte(iRegister + 1, tensValue);
+		memory->SetByte(iRegister + 2, onesValue);
 	}
 
 	void CPU::Execute_FX55(uint16_t instruction)
 	{
 		PrintInstructionExecution("FX55");
 
-		// TODO: Implement
+		uint8_t x = GetX(instruction);
+
+		for (int i = 0; i <= x; i++) memory->SetByte(iRegister + i, vRegisters[i]);
 	}
 
 	void CPU::Execute_FX65(uint16_t instruction)
 	{
 		PrintInstructionExecution("FX65");
 
-		// TODO: Implement
+		uint8_t x = GetX(instruction);
+
+		for (int i = 0; i <= x; i++) vRegisters[i] = memory->GetByte(iRegister + i);
+	}
+
+	void CPU::MoveToNextInstruction()
+	{
+		programCounter += 2;
 	}
 
 	void CPU::PrintInstructionExecution(std::string instruction)
@@ -545,7 +621,6 @@ namespace SHG
 	void CPU::PrintRegisterValues()
 	{
 		std::cout << "I Register: " << (int)iRegister << std::endl;
-		std::cout << "Delay register: " << (int)timerRegisters[DELAY_TIMER_INDEX] << std::endl;
 		std::cout << "Sound register: " << (int)timerRegisters[SOUND_TIMER_INDEX] << std::endl;
 		std::cout << "V Registers: [";
 
@@ -554,18 +629,28 @@ namespace SHG
 			std::cout << (int)vRegisters[i];
 			if (i < 15) std::cout << ", ";
 		}
-		
+
 		std::cout << "]" << std::endl;
 	}
 
-	uint8_t CPU::GetXRegisterId(uint16_t instruction)
+	void CPU::PrintDelayTimerValue()
+	{
+		std::cout << "Delay register: " << (int)timerRegisters[DELAY_TIMER_INDEX] << std::endl;
+	}
+
+	void CPU::PrintSoundTimerValue()
+	{
+		std::cout << "Delay register: " << (int)timerRegisters[SOUND_TIMER_INDEX] << std::endl;
+	}
+
+	uint8_t CPU::GetX(uint16_t instruction)
 	{
 		// The 'X' register ID is generally stored in the second highest half-byte.
 		// The value is shifted to the right by 8 bits in order to get the actual integer value.
 		return (instruction & 0x0F00) >> 8;
 	}
 
-	uint8_t CPU::GetYRegisterId(uint16_t instruction)
+	uint8_t CPU::GetY(uint16_t instruction)
 	{
 		// The 'Y' register ID is generally stored in the second lowest half-byte.
 		// The value is shifted to the right by 4 bits in order to get the actual integer value.
