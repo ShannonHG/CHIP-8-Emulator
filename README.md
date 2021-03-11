@@ -7,7 +7,7 @@ Run:
  CHIP-8-Emulator.exe <path-to-rom> <instructions-per-second>
 ```
 
-**Instructions per second** - How many instructions the CPU should complete each second. The ideal number for this varies between ROMs, but 500 - 1000 seems to be a good range.
+**Instructions per second** - How many instructions the CPU should fetch/execute each second. The ideal number for this varies between ROMs, but 500 - 1000 seems to be a good range.
 
 ## Keypad Layout
 ```
