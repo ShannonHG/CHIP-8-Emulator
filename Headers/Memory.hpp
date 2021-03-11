@@ -13,7 +13,7 @@ namespace SHG
 		static const int NUMBER_OF_FONT_SPRITES = 16;
 
 		Memory();
-		void LoadRom(std::string filePath);
+		bool LoadRom(std::string filePath);
 		const uint8_t* GetData();
 		void SetByte(int address, uint8_t byte);
 		uint8_t GetByte(int address);

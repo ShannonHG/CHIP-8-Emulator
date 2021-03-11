@@ -80,11 +80,18 @@ namespace SHG
 		return data[address];
 	}
 
-	void Memory::LoadRom(std::string filePath)
+	bool Memory::LoadRom(std::string filePath)
 	{
 		std::cout << "Loading ROM: " << filePath << std::endl;
 
 		std::ifstream file(filePath, std::fstream::binary);
+
+		if (!file.is_open())
+		{
+			std::cout << "Invalid ROM file provided.";
+			return false;
+		}
+
 		char buf[1];
 
 		int counter = 0;
@@ -100,7 +107,7 @@ namespace SHG
 			if (fileSize > MAX_ROM_SIZE)
 			{
 				std::cout << "The ROM is too large to be loaded into memory." << std::endl;
-				break;
+				return false;
 			}
 
 			// Any memory locations after data[RESERVED_MEMORY_SIZE - 1] 
@@ -113,5 +120,6 @@ namespace SHG
 		file.close();
 
 		std::cout << "ROM size: " << fileSize << " bytes" << std::endl;
+		return true;
 	}
 }

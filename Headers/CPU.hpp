@@ -12,6 +12,7 @@ namespace SHG
 	{
 	public:
 		CPU(Memory* memory, Display* display, Keypad* keypad);
+		void StartCycle(int instructionsPerSecond);
 		void Tick();
 
 	private:
@@ -31,7 +32,12 @@ namespace SHG
 		uint16_t iRegister{};
 		uint16_t timerRegisters[2]{};
 
-		std::chrono::system_clock::time_point lastTimerUpdateTime;
+		std::chrono::system_clock::time_point previousTimerUpdateTime;
+
+		bool isRunning = false;
+		int instructionsPerSecond = 800;
+		double targetFetchDeltaTime;
+		std::chrono::system_clock::time_point previousInstructionFetchTime;
 
 		uint8_t GetX(uint16_t instruction);
 		uint8_t GetY(uint16_t instruction);

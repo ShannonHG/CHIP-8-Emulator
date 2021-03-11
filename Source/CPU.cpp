@@ -7,11 +7,11 @@ using namespace std::chrono;
 
 namespace SHG
 {
-	// How many time per second to update timers
+	// How many times per second to update timers
 	static const int TIMER_UPDATES_PER_SECOND = 60;
 
 	// How many milliseconds to wait between timer updates
-	static const double TIMER_UPDATE_DELTA_TIME = (1.0 / TIMER_UPDATES_PER_SECOND) * 1000.0;
+	static const double TARGET_TIMER_UPDATE_DELTA_TIME = (1.0 / TIMER_UPDATES_PER_SECOND) * 1000.0;
 
 	CPU::CPU(Memory* memory, Display* display, Keypad* keypad)
 	{
@@ -20,29 +20,63 @@ namespace SHG
 		this->keypad = keypad;
 	}
 
+	void CPU::StartCycle(int instructionsPerSecond)
+	{
+		if (isRunning) return;
+
+		this->instructionsPerSecond = instructionsPerSecond;
+		targetFetchDeltaTime = (1.0 / instructionsPerSecond) * 1000.0;
+
+		isRunning = true;
+		while (isRunning)
+		{
+			SDL_Event e;
+			while (SDL_PollEvent(&e))
+			{
+				if (e.type == SDL_QUIT)
+				{
+					isRunning = false;
+					return;
+				}
+
+				keypad->Update(e);
+			}
+
+			Tick();
+		}
+	}
+
 	void CPU::Tick()
 	{
 		auto currentTime = system_clock::now();
-		auto deltaTime = (duration_cast<duration<double, std::milli>> (currentTime - lastTimerUpdateTime)).count();
 
-		// Instructions are 16 bytes each, so the bytes at [programCounter] and 
-		// [programCounter + 1] are combined to retrieve the full instruction.
-		uint16_t instruction = (memory->GetByte(programCounter) << 8) | (memory->GetByte(programCounter + 1));
+		// Fetch and execute instructions
+		auto fetchDeltaTime = (duration_cast<duration<double, std::milli>> (currentTime - previousInstructionFetchTime)).count();
+		if (fetchDeltaTime >= targetFetchDeltaTime)
+		{
+			// Instructions are 16 bytes each, so the bytes at [programCounter] and 
+			// [programCounter + 1] are combined to retrieve the full instruction.
+			uint16_t instruction = (memory->GetByte(programCounter) << 8) | (memory->GetByte(programCounter + 1));
 
-		/*std::cout << "Instruction read from memory: " << std::hex << std::setfill('0') << std::setw(4) << instruction << std::endl;
-		std::cout << std::resetiosflags(std::ios::hex);*/
+			/*std::cout << "Instruction read from memory: " << std::hex << std::setfill('0') << std::setw(4) << instruction << std::endl;
+			std::cout << std::resetiosflags(std::ios::hex);*/
 
-		MoveToNextInstruction();
+			MoveToNextInstruction();
 
-		ExecuteInstruction(instruction);
+			ExecuteInstruction(instruction);
 
-		if (deltaTime >= TIMER_UPDATE_DELTA_TIME)
+			previousInstructionFetchTime = currentTime;
+		}
+
+		// Update timers
+		auto timerDeltaTime = (duration_cast<duration<double, std::milli>> (currentTime - previousTimerUpdateTime)).count();
+		if (timerDeltaTime >= TARGET_TIMER_UPDATE_DELTA_TIME)
 		{
 			// Decrement timers, and prevent them from being less than zero
 			timerRegisters[DELAY_TIMER_INDEX] = std::max(timerRegisters[DELAY_TIMER_INDEX] - 1, 0);
 			timerRegisters[SOUND_TIMER_INDEX] = std::max(timerRegisters[SOUND_TIMER_INDEX] - 1, 0);
 
-			lastTimerUpdateTime = currentTime;
+			previousTimerUpdateTime = currentTime;
 		}
 
 	/*	PrintStackPointerValue();
@@ -189,6 +223,8 @@ namespace SHG
 	void CPU::Execute_0NNN(uint16_t instruction)
 	{
 		PrintInstructionExecution("0NNN");
+
+		programCounter = instruction & 0x0FFF;
 	}
 
 	void CPU::Execute_00E0(uint16_t instruction)
@@ -315,7 +351,7 @@ namespace SHG
 		// Store lower 8 bits in the register
 		vRegisters[xRegId] = sum & 0xFF;
 
-		// If the sum is greater than 0, then set VF to 1
+		// If the sum is greater than 255, then set VF to 1, otherwise set VF to 0
 		vRegisters[VF_REG_INDEX] = sum > 0xFF ? 1 : 0;
 	}
 
@@ -385,7 +421,7 @@ namespace SHG
 
 		iRegister = instruction & 0x0FFF;
 
-		std::cout << "Register 'I' updated: " << iRegister << std::endl;
+		//std::cout << "Register 'I' updated: " << iRegister << std::endl;
 	}
 
 	void CPU::Execute_BNNN(uint16_t instruction)
@@ -411,25 +447,33 @@ namespace SHG
 	{
 		PrintInstructionExecution("DXYN");
 
+		vRegisters[VF_REG_INDEX] = 0;
+
 		uint8_t xRegId = GetX(instruction);
 		uint8_t yRegId = GetY(instruction);
 		uint16_t spriteSize = instruction & 0x000F;
 
 		//std::cout << "Drawing sprite with size: 8 x " << spriteSize << std::endl;
 
-		int x = vRegisters[xRegId];
+		// If vRegisters[xRegId] is outside of the screen coordinates
+		// wrap the sprite so that it appears on the opposite side of the screen.
+		int x = vRegisters[xRegId] % Display::LOW_RES_SCREEN_WIDTH;
 
 		for (int index = 0; index < spriteSize; index++)
 		{
-			int y = vRegisters[yRegId] + index;
+			// If vRegisters[yRegId] is outside of the screen coordinates
+			// wrap the sprite so that it appears on the opposite side of the screen.
+			int pixelY = (vRegisters[yRegId] % Display::LOW_RES_SCREEN_HEIGHT) + index;
+
+			//if (pixelY >= Display::LOW_RES_SCREEN_HEIGHT) return;
 
 			uint8_t spriteByte = memory->GetByte(iRegister + index);
 
 			for (int i = 0; i < 8; i++)
 			{
-				// Wrap x and y values
-				uint8_t clampedX = (x + i) % Display::LOW_RES_SCREEN_WIDTH;
-				uint8_t clampedY = y % Display::LOW_RES_SCREEN_HEIGHT;
+				int pixelX = x + i;
+
+				//if (pixelX >= Display::LOW_RES_SCREEN_WIDTH) return;
 
 				// Note: Bits should be read from left to right since graphics on CHIP-8 are drawn
 				// from top-left to bottom-right. 
@@ -443,15 +487,15 @@ namespace SHG
 				// that the byte can be treated as a 0 or 1.
 				spritePixel = spritePixel >> (7 - i);
 
-				uint8_t displayPixel = display->GetPixel(clampedX, clampedY);
+				uint8_t displayPixel = display->GetPixel(pixelX, pixelY);
 
 				// XOR the sprite's pixels with the existing pixels on the screen
 				uint8_t resultPixel = (spritePixel ^ displayPixel);
 
-				display->SetPixel(clampedX, clampedY, resultPixel);
+				display->SetPixel(pixelX, pixelY, resultPixel);
 
 				// Set VF to 1 if a pixel is erased after the XOR operation, otherwise set VF to 0
-				vRegisters[VF_REG_INDEX] = (resultPixel == 0) && (displayPixel == 1) ? 1 : 0;
+				if ((resultPixel == 0) && (displayPixel == 1)) vRegisters[VF_REG_INDEX] = 1;
 			}
 		}
 	}
@@ -511,7 +555,7 @@ namespace SHG
 		uint8_t xRegId = GetX(instruction);
 		timerRegisters[DELAY_TIMER_INDEX] = vRegisters[xRegId];
 
-		std::cout << "Updated delay timer register: " << timerRegisters[DELAY_TIMER_INDEX] << std::endl;
+		//std::cout << "Updated delay timer register: " << timerRegisters[DELAY_TIMER_INDEX] << std::endl;
 	}
 
 	void CPU::Execute_FX18(uint16_t instruction)
@@ -521,7 +565,7 @@ namespace SHG
 		uint8_t xRegId = GetX(instruction);
 		timerRegisters[SOUND_TIMER_INDEX] = vRegisters[xRegId];
 
-		std::cout << "Updated sound timer register: " << timerRegisters[SOUND_TIMER_INDEX] << std::endl;
+		//std::cout << "Updated sound timer register: " << timerRegisters[SOUND_TIMER_INDEX] << std::endl;
 	}
 
 	void CPU::Execute_FX1E(uint16_t instruction)
@@ -539,7 +583,7 @@ namespace SHG
 
 		uint8_t xRegId = GetX(instruction);
 
-		// Set iRegister to the location of the sprite for the digit represent by vRegisters[X]
+		// Set iRegister to the location of the sprite for the digit that vRegisters[X] corresponds to
 		iRegister = vRegisters[xRegId] * Memory::FONT_SPRITE_SIZE;
 	}
 
@@ -592,7 +636,7 @@ namespace SHG
 
 	void CPU::PrintInstructionExecution(std::string instruction)
 	{
-		std::cout << "[Executing instruction: " << instruction << "]" << std::endl;
+		//std::cout << "[Executing instruction: " << instruction << "]" << std::endl;
 	}
 
 	void CPU::PrintStackValues()

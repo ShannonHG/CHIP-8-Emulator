@@ -32,8 +32,8 @@ namespace SHG
 		{
 			keyStates[KEYS.at(keyCode)] = true;
 
-			std::cout << "Detected key press: " << std::hex << std::setfill('0') << std::setw(2) << (int)KEYS.at(e.key.keysym.sym) << std::endl;
-			std::cout << std::resetiosflags(std::ios::hex);
+			/*std::cout << "Detected key press: " << std::hex << std::setfill('0') << std::setw(2) << (int)KEYS.at(e.key.keysym.sym) << std::endl;
+			std::cout << std::resetiosflags(std::ios::hex);*/
 		}
 		else if (e.type == SDL_KEYUP)
 		{

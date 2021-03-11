@@ -22,6 +22,9 @@ namespace SHG
 		int screenWidth{};
 		int screenHeight{};
 
+		int pixelWidth{};
+		int pixelHeight{};
+
 		SDL_Window* window{};
 		SDL_Surface* surface{};
 		SDL_Renderer* renderer{};
