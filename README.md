@@ -1,6 +1,15 @@
 # CHIP-8-Emulator
  CHIP-8 emulator written in C++
 
+## Dependencies
+* SDL2 - https://www.libsdl.org/
+
+## Compilation 
+The program should be able to be built with any C++ compiler. Below is an example using MSVC on Windows.
+```
+cl.exe -EHsc Source/*.cpp -I Headers/ -I SDL2/include/ -Fo:Build/ -Fe:Build/Chip-8-Emulator.exe /link /LIBPATH:SDL2/lib/x64/ SDL2main.lib SDL2.lib Shell32.lib -SUBSYSTEM:CONSOLE
+``` 
+
 ## How to run
 Run:
 ```
@@ -16,9 +25,6 @@ Q W E R
 A S D F
 Z X C V
 ```
-
-## Dependencies
-* SDL2 - https://www.libsdl.org/
 
 ## ROMs
  The following ROMs have been confirmed to work:

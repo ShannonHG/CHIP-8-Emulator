@@ -354,3 +354,10 @@ ROMs/
 
 # Third party libraries
 ThirdParty/
+
+# Visual Studio solution 
+*.sln
+
+# Visual Studio project files
+*.vcxproj
+*.vcxproj.*
