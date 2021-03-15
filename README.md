@@ -25,35 +25,6 @@ A S D F
 Z X C V
 ```
 
-## ROMs
- The following ROMs have been confirmed to work:
-
- * 15PUZZLE
- * BLINKY
- * BLITZ
- * BRIX
- * CONNECT4
- * GUESS
- * HIDDEN
- * SPACE INVADERS
- * KALEID
- * MAZE
- * MERLIN
- * MISSILE
- * PONG
- * PONG2
- * PUZZLE
- * SYZYGY
- * TANK
- * TETRIS
- * TICTAC
- * UFO
- * VERTICAL BRIX
- * VERS
- * WIPEOFF
-
- ROMs from https://www.zophar.net/pdroms/chip8.html
-
 ## References
 * http://devernay.free.fr/hacks/chip8/C8TECH10.HTM
 * https://tobiasvl.github.io/blog/write-a-chip-8-emulator/
