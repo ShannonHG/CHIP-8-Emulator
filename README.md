@@ -7,7 +7,7 @@
 ## Compilation 
 The program can be built with any C++ compiler. Here is an example using MSVC:
 ```
-cl.exe -EHsc Source/*.cpp -I Headers/ -I SDL2/include/ -Fo:Build/ -Fe:Build/Chip-8-Emulator.exe /link /LIBPATH:SDL2/lib/x64/ SDL2main.lib SDL2.lib Shell32.lib -SUBSYSTEM:CONSOLE
+cl.exe -EHsc Source/*.cpp -I Include/ -I SDL2/include/ -Fo:Build/ -Fe:Build/Chip-8-Emulator.exe /link /LIBPATH:SDL2/lib/x64/ SDL2main.lib SDL2.lib Shell32.lib -SUBSYSTEM:CONSOLE
 ``` 
 
 ## How to Run
